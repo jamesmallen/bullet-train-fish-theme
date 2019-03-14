@@ -352,101 +352,69 @@ end
 
 function prompt_git -d "Show git working tree info"
   test "$BULLETTRAIN_GIT_SHOW" = "true"; or return
-  test (command -v git); or return
-  test (git rev-parse --is-inside-work-tree ^ /dev/null); or return
 
   set -l _bg $BULLETTRAIN_GIT_BG
   set -l _fg $BULLETTRAIN_GIT_FG
-  set -l _is_dirty (is_git_dirty)
+  set -g __fish_git_prompt_showuntrackedfiles 1
+  set -g __fish_git_prompt_showstashstate 1
+  set -g __fish_git_prompt_showdirtystate 1
+  set -g __fish_git_prompt_char_cleanstate (set_color $BULLETTRAIN_GIT_CLEAN_FG)$BULLETTRAIN_GIT_CLEAN
+  set -g __fish_git_prompt_char_dirtystate (set_color $BULLETTRAIN_GIT_MODIFIED_FG)$BULLETTRAIN_GIT_MODIFIED
+  set -g __fish_git_prompt_char_stagedstate (set_color $BULLETTRAIN_GIT_ADDED_FG)$BULLETTRAIN_GIT_ADDED
+  set -g __fish_git_prompt_char_stashstate (set_color $BULLETTRAIN_GIT_STASHED_FG)$BULLETTRAIN_GIT_STASHED
+  set -g __fish_git_prompt_char_untrackedfiles (set_color $BULLETTRAIN_GIT_UNTRACKED_FG)$BULLETTRAIN_GIT_UNTRACKED
+  set -g __fish_git_prompt_char_upstream_ahead (set_color $BULLETTRAIN_GIT_AHEAD_FG)$BULLETTRAIN_GIT_AHEAD
+  set -g __fish_git_prompt_char_upstream_behind (set_color $BULLETTRAIN_GIT_BEHIND_FG)$BULLETTRAIN_GIT_BEHIND
+  set -g __fish_git_prompt_char_upstream_diverged (set_color $BULLETTRAIN_GIT_DIVERGED_FG)$BULLETTRAIN_GIT_DIVERGED
+  set -g __fish_git_prompt_char_upstream_equal ''
+  set -g __fish_git_prompt_char_stateseparator ' '
 
-  test "$BULLETTRAIN_GIT_COLORIZE_DIRTY" = "true";
-    and test "$_is_dirty";
-      and set _bg $BULLETTRAIN_GIT_COLORIZE_DIRTY_BG;
-        and set _fg $BULLETTRAIN_GIT_COLORIZE_DIRTY_FG
+  functions -q __fish_git_prompt  # force load __fish_git_prompt helper functions
 
-  git_prompt_info $_bg $_fg $_is_dirty
-  test "$BULLETTRAIN_GIT_EXTENDED" = "true"; and git_prompt_status $_bg $_fg
-end
+  if test "$BULLETTRAIN_GIT_COLORIZE_DIRTY" = true
+    set -l should_colorize
 
-function git_prompt_info -a bg fg is_dirty
-  set -l ref (git symbolic-ref HEAD ^ /dev/null);
-    or set ref (git rev-parse --short HEAD ^ /dev/null);
-      or return 0
+    set -l dirty (command git config --bool bash.showDirtyState)
+    if not set -q dirty[1]
+        set -q __fish_git_prompt_showdirtystate
+        and set dirty true
+    end
 
-  set -l _dirty $BULLETTRAIN_GIT_CLEAN
-  test "$is_dirty" = "true"; and set _dirty $BULLETTRAIN_GIT_DIRTY;
-  test "$BULLETTRAIN_GIT_PREFIX"; and prompt_segment $bg $fg $BULLETTRAIN_GIT_PREFIX
-  prompt_segment $bg $fg (echo $ref | sed "s-refs/heads/--")
-  test "$_dirty"; and prompt_segment $bg (test "$is_dirty" = "true"; and echo $BULLETTRAIN_GIT_DIRTY_FG; or echo $fg) $_dirty
-  test "$BULLETTRAIN_GIT_SUFFIX"; and prompt_segment $bg $fg $BULLETTRAIN_GIT_SUFFIX
-end
+    set -l untracked (command git config --bool bash.showUntrackedFiles)
+    if not set -q untracked[1]
+        set -q __fish_git_prompt_showuntrackedfiles
+        and set untracked true
+    end
 
-function is_git_dirty
-  set -l _flgs "--porcelain"
-  set -l _post_1_7_2_git (git_compare_version "1.7.2")
-  test $_post_1_7_2_git -gt 0;
-    set _flags $_flgs "--ignore-submodules=dirty"
-  test "$BULLETTRAIN_GIT_DISABLE_UNTRACKED_FILES_DIRTY" = "true";
-    set _flags $_flgs "--untracked-files=no"
-  set -l _status (git status "$_flgs" ^ /dev/null | tail -n1)
-  test "$_status"; and echo true
-end
+    if test "$untracked" = true; and command git ls-files --others --exclude-standard --directory --no-empty-directory --error-unmatch -- :/ >/dev/null 2>&1
+      set should_colorize true
+    end
 
-function git_compare_version -a version
-  set -l _input_git_version (string split "." $version)
-  set -l _installed_git_version (string split "." (git --version ^ /dev/null | cut -d' ' -f3))
-  for i in (seq 3)
-    test $_installed_git_version[$i] -gt $_input_git_version[$i];
-      and echo 1;
-        and return 0
-    test $_installed_git_version[$i] -lt $_input_git_version[$i];
-      and echo -1;
-        and return 0
+    if test "$should_colorize" != true; and test "$dirty" = true
+      set -l dirty
+      set -l os
+      command git diff --no-ext-diff --quiet --exit-code 2>/dev/null
+      set os $status
+      if test $os -ne 0
+          set should_colorize true
+      end
+    end
+
+    if test "$should_colorize" = true
+      set _bg $BULLETTRAIN_GIT_COLORIZE_DIRTY_BG
+      set _fg $BULLETTRAIN_GIT_COLORIZE_DIRTY_FG
+    end
   end
-  echo 0
-end
 
-function git_prompt_status -a bg fg
-  git status --porcelain -b ^ /dev/null | read -lz _index
-  test (find_from_lines '^## [^ ]\+ .*diverged' $_index);
-    and git_prompt_segment $bg $fg $BULLETTRAIN_GIT_DIVERGED_FG $BULLETTRAIN_GIT_DIVERGED
-  test (find_from_lines '^## [^ ]\+ .*behind' $_index);
-    and git_prompt_segment $bg $fg $BULLETTRAIN_GIT_BEHIND_FG $BULLETTRAIN_GIT_BEHIND
-  test (find_from_lines '^## [^ ]\+ .*ahead' $_index);
-    and git_prompt_segment $bg $fg $BULLETTRAIN_GIT_AHEAD_FG $BULLETTRAIN_GIT_AHEAD
-  test (find_from_lines '^UU ' $_index);
-    and git_prompt_segment $bg $fg $BULLETTRAIN_GIT_UNMERGED_FG $BULLETTRAIN_GIT_UNMERGED
-  test (git rev-parse --verify refs/stash ^ /dev/null);
-    and git_prompt_segment $bg $fg $BULLETTRAIN_GIT_STASHED_FG $BULLETTRAIN_GIT_STASHED
-  if begin test (find_from_lines '^ D ' $_index);
-    or test (find_from_lines '^D  ' $_index);
-    or test (find_from_lines '^AD ' $_index); end;
-    git_prompt_segment $bg $fg $BULLETTRAIN_GIT_DELETED_FG $BULLETTRAIN_GIT_DELETED
-  end
-  test (find_from_lines '^R  ' $_index);
-    and git_prompt_segment $bg $fg $BULLETTRAIN_GIT_RENAMED_FG $BULLETTRAIN_GIT_RENAMED
-  if begin test (find_from_lines '^ M ' $_index);
-    or test (find_from_lines '^AM ' $_index);
-    or test (find_from_lines '^ T ' $_index); end;
-    git_prompt_segment $bg $fg $BULLETTRAIN_GIT_MODIFIED_FG $BULLETTRAIN_GIT_MODIFIED
-  end
-  if begin test (find_from_lines '^A  ' $_index);
-    or test (find_from_lines '^M  ' $_index); end;
-    git_prompt_segment $bg $fg $BULLETTRAIN_GIT_ADDED_FG $BULLETTRAIN_GIT_ADDED
-  end
-  test (find_from_lines '^\?\? ' $_index);
-    and git_prompt_segment $bg $fg $BULLETTRAIN_GIT_UNTRACKED_FG $BULLETTRAIN_GIT_UNTRACKED
+  __fish_git_prompt_set_color __fish_git_prompt_color (set_color $_fg) ''
+  # set -g ___fish_git_prompt_color (set_color $_fg)
+  # set -g __fish_git_prompt_color_done ''
+  __fish_git_prompt_validate_colors
+  prompt_segment $_bg $_fg (__fish_git_prompt "$BULLETTRAIN_GIT_PREFIX %s$BULLETTRAIN_GIT_SUFFIX")
 end
 
 function find_from_lines -a expr lines
   test (echo $lines | grep -E $expr | tail -n1); and echo true;
-end
-
-function git_prompt_segment -a bg base_fg fg prompt
-  test -n "$prompt"; or return
-  set -l _fg $base_fg
-  test "$fg"; and set _fg $fg
-  prompt_segment $bg $_fg $prompt
 end
 
 function prompt_hg -d "Show mercurial working tree info"
