@@ -350,6 +350,17 @@ function prompt_go -d "Show go environment"
       and prompt_segment $BULLETTRAIN_GO_BG $BULLETTRAIN_GO_FG "$_go_prompt"
 end
 
+function set_char_with_space
+  set -l bullettrain_variable_name "$argv[1]"
+  set -l bullettrain_fg_variable_name $bullettrain_variable_name'_FG'
+  set -l fish_variable_name "$argv[2]"
+  if test -n "$$bullettrain_variable_name"
+    set -g $fish_variable_name ' '(set_color $$bullettrain_fg_variable_name)$$bullettrain_variable_name
+  else
+    set -g $fish_variable_name ''
+  end
+end
+
 function prompt_git -d "Show git working tree info"
   test "$BULLETTRAIN_GIT_SHOW" = "true"; or return
 
@@ -358,16 +369,25 @@ function prompt_git -d "Show git working tree info"
   set -g __fish_git_prompt_showuntrackedfiles 1
   set -g __fish_git_prompt_showstashstate 1
   set -g __fish_git_prompt_showdirtystate 1
-  set -g __fish_git_prompt_char_cleanstate (set_color $BULLETTRAIN_GIT_CLEAN_FG)$BULLETTRAIN_GIT_CLEAN
-  set -g __fish_git_prompt_char_dirtystate (set_color $BULLETTRAIN_GIT_MODIFIED_FG)$BULLETTRAIN_GIT_MODIFIED
-  set -g __fish_git_prompt_char_stagedstate (set_color $BULLETTRAIN_GIT_ADDED_FG)$BULLETTRAIN_GIT_ADDED
-  set -g __fish_git_prompt_char_stashstate (set_color $BULLETTRAIN_GIT_STASHED_FG)$BULLETTRAIN_GIT_STASHED
-  set -g __fish_git_prompt_char_untrackedfiles (set_color $BULLETTRAIN_GIT_UNTRACKED_FG)$BULLETTRAIN_GIT_UNTRACKED
-  set -g __fish_git_prompt_char_upstream_ahead (set_color $BULLETTRAIN_GIT_AHEAD_FG)$BULLETTRAIN_GIT_AHEAD
-  set -g __fish_git_prompt_char_upstream_behind (set_color $BULLETTRAIN_GIT_BEHIND_FG)$BULLETTRAIN_GIT_BEHIND
-  set -g __fish_git_prompt_char_upstream_diverged (set_color $BULLETTRAIN_GIT_DIVERGED_FG)$BULLETTRAIN_GIT_DIVERGED
+
+  set -l bullettrain_var_to_fish_var \
+    CLEAN cleanstate \
+    MODIFIED dirtystate \
+    ADDED stagedstate \
+    STASHED stashstate \
+    UNTRACKED untrackedfiles \
+    AHEAD upstream_ahead \
+    BEHIND upstream_behind \
+    DIVERGED upstream_diverged
+
+  for i in (seq (math (count $bullettrain_var_to_fish_var) / 2))
+    set -l bullettrain_var BULLETTRAIN_GIT_$bullettrain_var_to_fish_var[(math "($i-1)*2 + 1")]
+    set -l fish_var __fish_git_prompt_char_$bullettrain_var_to_fish_var[(math "($i-1)*2 + 2")]
+    set_char_with_space $bullettrain_var $fish_var
+  end
+
   set -g __fish_git_prompt_char_upstream_equal ''
-  set -g __fish_git_prompt_char_stateseparator ' '
+  set -g __fish_git_prompt_char_stateseparator ''
 
   functions -q __fish_git_prompt  # force load __fish_git_prompt helper functions
 
