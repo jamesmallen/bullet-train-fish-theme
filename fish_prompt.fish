@@ -430,7 +430,10 @@ function prompt_git -d "Show git working tree info"
   # set -g ___fish_git_prompt_color (set_color $_fg)
   # set -g __fish_git_prompt_color_done ''
   __fish_git_prompt_validate_colors
-  prompt_segment $_bg $_fg (__fish_git_prompt "$BULLETTRAIN_GIT_PREFIX %s$BULLETTRAIN_GIT_SUFFIX")
+  set -l git_prompt (__fish_git_prompt "$BULLETTRAIN_GIT_PREFIX %s$BULLETTRAIN_GIT_SUFFIX")
+  if test -n "$git_prompt"
+    prompt_segment $_bg $_fg (__fish_git_prompt "$BULLETTRAIN_GIT_PREFIX %s$BULLETTRAIN_GIT_SUFFIX")
+  end
 end
 
 function find_from_lines -a expr lines
